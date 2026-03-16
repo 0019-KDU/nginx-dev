@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nginx + Node Proxy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <span class="logo-nginx">Nginx</span>
+        <span class="sep">+</span>
+        <span class="logo-node">Node</span>
+      </div>
+      <div class="status-pill" id="status-pill">
+        <span class="dot"></span> Checking…
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div class="hero-badge">Reverse Proxy Demo</div>
+      <h1>Nginx proxies requests<br /><span class="hl">to your Node.js API</span></h1>
+      <p>Static frontend served by Nginx. API calls forwarded to Node.js running on port 3000.</p>
+    </section>
+
+    <!-- Architecture diagram -->
+    <div class="arch-card">
+      <div class="arch-block browser">
+        <div class="arch-icon">🌐</div>
+        <div class="arch-label">Browser</div>
+      </div>
+      <div class="arch-arrow">
+        <span class="arrow-line"></span>
+        <span class="arrow-label">:80</span>
+      </div>
+      <div class="arch-block nginx">
+        <div class="arch-icon">⚙️</div>
+        <div class="arch-label">Nginx</div>
+        <div class="arch-sub">Static + Proxy</div>
+      </div>
+      <div class="arch-arrow">
+        <span class="arrow-line"></span>
+        <span class="arrow-label">:3000</span>
+      </div>
+      <div class="arch-block node">
+        <div class="arch-icon">🟢</div>
+        <div class="arch-label">Node.js</div>
+        <div class="arch-sub">REST API</div>
+      </div>
+    </div>
+
+    <!-- API Controls -->
+    <div class="api-section">
+      <h2>Try the API</h2>
+      <div class="endpoint-grid">
+        <div class="endpoint-card">
+          <div class="endpoint-method">GET</div>
+          <div class="endpoint-path">/api/hello</div>
+          <p>Basic hello response from Node.</p>
+          <button class="btn" onclick="callApi('/api/hello')">Call →</button>
+        </div>
+        <div class="endpoint-card">
+          <div class="endpoint-method">GET</div>
+          <div class="endpoint-path">/api/random</div>
+          <p>Returns a random message from the server.</p>
+          <button class="btn" onclick="callApi('/api/random')">Call →</button>
+        </div>
+        <div class="endpoint-card">
+          <div class="endpoint-method">GET</div>
+          <div class="endpoint-path">/api/status</div>
+          <p>Server uptime, memory, and timestamp.</p>
+          <button class="btn" onclick="callApi('/api/status')">Call →</button>
+        </div>
+      </div>
+
+      <!-- Response box -->
+      <div class="response-box" id="response-box">
+        <div class="response-header">
+          <span id="response-route">—</span>
+          <span class="response-badge" id="response-badge"></span>
+        </div>
+        <pre id="response-body">Hit a button above to call the API.</pre>
+      </div>
+    </div>
+
+    <!-- Status panel -->
+    <div class="status-section">
+      <h2>Server Status</h2>
+      <div class="status-grid" id="status-grid">
+        <div class="status-card"><div class="sk-label">Server</div><div class="sk-val" id="sk-server">—</div></div>
+        <div class="status-card"><div class="sk-label">Uptime</div><div class="sk-val" id="sk-uptime">—</div></div>
+        <div class="status-card"><div class="sk-label">Memory</div><div class="sk-val" id="sk-memory">—</div></div>
+        <div class="status-card"><div class="sk-label">Timestamp</div><div class="sk-val" id="sk-ts">—</div></div>
+      </div>
+      <button class="btn btn-outline" onclick="fetchStatus()">Refresh Status</button>
+    </div>
+  </main>
+
+  <footer>
+    <p>Project 2 — Nginx Reverse Proxy + Node.js API</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
