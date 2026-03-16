@@ -6,346 +6,100 @@
   <title>Nginx Load Balancer</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <style>
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-    :root {
-      --dark:   #0d0d16;
-      --dark-2: #13131f;
-      --dark-3: #1c1c2e;
-      --border: rgba(255,255,255,0.07);
-      --card:   rgba(255,255,255,0.04);
-      --text:   #e2e8f0;
-      --muted:  #64748b;
-      --b1:     #6366f1;
-      --b2:     #ec4899;
-      --green:  #22c55e;
-      --radius: 12px;
-    }
-
-    html { scroll-behavior: smooth; }
-    body {
-      font-family: 'Inter', system-ui, sans-serif;
-      background: var(--dark);
-      color: var(--text);
-      line-height: 1.7;
-      min-height: 100vh;
-    }
-
-    /* Header */
-    header {
-      border-bottom: 1px solid var(--border);
-      background: rgba(13,13,22,0.85);
-      backdrop-filter: blur(14px);
-      position: sticky; top: 0; z-index: 100;
-      padding: 0.85rem 1.5rem;
-    }
-    .header-inner {
-      max-width: 1000px; margin: 0 auto;
-      display: flex; align-items: center; justify-content: space-between;
-    }
-    .logo { font-size: 1.15rem; font-weight: 800; }
-    .logo span { color: var(--b1); }
-    .live-badge {
-      display: flex; align-items: center; gap: 0.45rem;
-      font-size: 0.78rem; font-weight: 600; color: var(--green);
-      border: 1px solid rgba(34,197,94,0.25);
-      background: rgba(34,197,94,0.07);
-      padding: 0.28rem 0.8rem; border-radius: 999px;
-    }
-    .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; animation: blink 1.8s infinite; }
-    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
-
-    /* Main */
-    main { max-width: 1000px; margin: 0 auto; padding: 3rem 1.5rem 5rem; display: flex; flex-direction: column; gap: 3rem; }
-
-    /* Hero */
-    .hero { text-align: center; }
-    .hero-badge {
-      display: inline-block; font-size: 0.7rem; font-weight: 700;
-      letter-spacing: .1em; text-transform: uppercase;
-      color: var(--b1); border: 1px solid rgba(99,102,241,.3);
-      background: rgba(99,102,241,.08); padding: .28rem .85rem;
-      border-radius: 999px; margin-bottom: 1.1rem;
-    }
-    .hero h1 { font-size: clamp(1.8rem, 4vw, 2.8rem); font-weight: 800; line-height: 1.2; margin-bottom: .8rem; }
-    .hl {
-      background: linear-gradient(135deg, var(--b1), var(--b2));
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-    }
-    .hero p { color: var(--muted); font-size: .98rem; max-width: 500px; margin: 0 auto; }
-
-    /* Arch */
-    .arch-card {
-      display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .75rem;
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 2rem;
-    }
-    .arch-block {
-      display: flex; flex-direction: column; align-items: center; gap: .35rem;
-      background: rgba(255,255,255,.04); border: 1px solid var(--border);
-      border-radius: 10px; padding: 1rem 1.5rem; min-width: 100px; text-align: center;
-    }
-    .arch-icon { font-size: 1.6rem; }
-    .arch-label { font-size: .85rem; font-weight: 700; }
-    .arch-sub   { font-size: .68rem; color: var(--muted); }
-    .arch-block.b1 .arch-label { color: var(--b1); }
-    .arch-block.b2 .arch-label { color: var(--b2); }
-    .arch-branch { display: flex; flex-direction: column; gap: .75rem; }
-    .arch-arrow-h {
-      display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 .4rem;
-    }
-    .arrow-line {
-      display: block; width: 50px; height: 2px;
-      background: linear-gradient(90deg, transparent, var(--b1), transparent);
-      position: relative;
-    }
-    .arrow-line::after {
-      content: ''; position: absolute; right: -1px; top: -4px;
-      border: 5px solid transparent; border-left-color: var(--b1);
-    }
-    .arrow-label { font-size: .65rem; color: var(--b1); font-weight: 600; }
-    .lb-tag {
-      font-size: .65rem; font-weight: 700; letter-spacing: .06em;
-      color: #fff; background: linear-gradient(135deg, var(--b1), var(--b2));
-      padding: .15rem .5rem; border-radius: 4px; margin-top: .25rem;
-    }
-
-    /* Section title */
-    h2.section-title { font-size: 1.05rem; font-weight: 700; margin-bottom: 1.2rem; }
-
-    /* Server cards */
-    .server-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
-    .server-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
-      padding: 1.5rem; transition: border-color .2s, transform .2s;
-    }
-    .server-card:hover { transform: translateY(-2px); }
-    .server-card.s1 { border-top: 2px solid var(--b1); }
-    .server-card.s2 { border-top: 2px solid var(--b2); }
-    .server-card-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-    .server-name { font-size: .9rem; font-weight: 700; }
-    .server-card.s1 .server-name { color: var(--b1); }
-    .server-card.s2 .server-name { color: var(--b2); }
-    .port-badge {
-      font-size: .7rem; font-weight: 700; font-family: monospace;
-      padding: .18rem .55rem; border-radius: 5px; border: 1px solid var(--border);
-      color: var(--muted);
-    }
-    .server-info { display: flex; flex-direction: column; gap: .4rem; margin-bottom: 1rem; }
-    .info-row { display: flex; justify-content: space-between; font-size: .82rem; }
-    .info-row span:first-child { color: var(--muted); }
-    .info-row span:last-child  { font-weight: 600; font-family: monospace; }
-    .server-hit-count { font-size: .75rem; color: var(--muted); margin-bottom: 1rem; }
-    .server-hit-count strong { color: var(--text); }
-
-    /* Buttons */
-    .btn {
-      display: inline-flex; align-items: center; gap: .35rem;
-      padding: .55rem 1.2rem; border-radius: 7px;
-      font-family: inherit; font-size: .85rem; font-weight: 600;
-      cursor: pointer; border: none; transition: all .2s;
-    }
-    .btn-b1 { background: linear-gradient(135deg, var(--b1), #818cf8); color: #fff; box-shadow: 0 3px 14px rgba(99,102,241,.3); }
-    .btn-b2 { background: linear-gradient(135deg, var(--b2), #f472b6); color: #fff; box-shadow: 0 3px 14px rgba(236,72,153,.3); }
-    .btn-b1:hover, .btn-b2:hover { transform: translateY(-1px); }
-    .btn-outline {
-      background: transparent; border: 1px solid var(--border); color: var(--muted);
-      box-shadow: none;
-    }
-    .btn-outline:hover { background: var(--card); color: var(--text); }
-
-    /* Simulate section */
-    .sim-controls { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; }
-    .response-box {
-      background: var(--dark-2, #13131f); border: 1px solid var(--border);
-      border-radius: var(--radius); overflow: hidden;
-    }
-    .response-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: .65rem 1.2rem; border-bottom: 1px solid var(--border);
-      background: var(--dark-3, #1c1c2e);
-    }
-    #resp-route { font-size: .78rem; font-family: monospace; color: var(--muted); }
-    .resp-badge {
-      font-size: .68rem; font-weight: 700; padding: .15rem .5rem;
-      border-radius: 4px; display: none;
-    }
-    .resp-badge.ok    { display: block; color: var(--green); background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.25); }
-    .resp-badge.error { display: block; color: #f87171; background: rgba(248,113,113,.1); border: 1px solid rgba(248,113,113,.25); }
-    #resp-body {
-      padding: 1.2rem; font-family: 'Courier New', monospace; font-size: .83rem;
-      color: #a5f3fc; white-space: pre-wrap; min-height: 72px;
-    }
-
-    /* Request log */
-    .log-box {
-      background: var(--dark-2, #13131f); border: 1px solid var(--border);
-      border-radius: var(--radius); max-height: 220px; overflow-y: auto;
-    }
-    .log-header {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: .65rem 1.2rem; border-bottom: 1px solid var(--border);
-      background: var(--dark-3, #1c1c2e); font-size: .78rem; font-weight: 600;
-    }
-    .log-entry {
-      display: flex; align-items: center; gap: .75rem;
-      padding: .55rem 1.2rem; border-bottom: 1px solid rgba(255,255,255,.03);
-      font-size: .8rem; font-family: monospace; animation: fadein .3s ease;
-    }
-    @keyframes fadein { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
-    .log-num  { color: var(--muted); min-width: 20px; }
-    .log-srv  { font-weight: 700; min-width: 75px; }
-    .log-srv.b1 { color: var(--b1); }
-    .log-srv.b2 { color: var(--b2); }
-    .log-msg  { color: var(--text); flex: 1; }
-    .log-time { color: var(--muted); font-size: .72rem; }
-    .log-empty { padding: 1rem 1.2rem; color: var(--muted); font-size: .85rem; }
-
-    /* Footer */
-    footer {
-      border-top: 1px solid var(--border); text-align: center;
-      padding: 1.5rem; color: var(--muted); font-size: .82rem;
-    }
-
-    @media (max-width: 600px) {
-      .server-grid { grid-template-columns: 1fr; }
-      .arch-card   { flex-direction: column; }
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
-<header>
-  <div class="header-inner">
-    <div class="logo">Nginx <span>Load Balancer</span></div>
-    <div class="live-badge"><span class="dot"></span> Round-Robin</div>
-  </div>
-</header>
-
-<main>
-
-  <!-- Hero -->
-  <section class="hero">
-    <div class="hero-badge">Project 3 — Load Balancing</div>
-    <h1>Two backends.<br /><span class="hl">One Nginx proxy.</span></h1>
-    <p>Nginx distributes incoming requests across Backend 1 (port 3001) and Backend 2 (port 3002) using round-robin load balancing.</p>
-  </section>
-
-  <!-- Architecture -->
-  <div class="arch-card">
-    <div class="arch-block">
-      <div class="arch-icon">🌐</div>
-      <div class="arch-label">Browser</div>
-      <div class="arch-sub">Client</div>
+  <header>
+    <div class="nav">
+      <div class="logo">Nginx<span>LB</span></div>
+      <div class="nav-right">
+        <div class="pill" id="b1-pill"><span class="dot"></span> Backend 1</div>
+        <div class="pill" id="b2-pill"><span class="dot"></span> Backend 2</div>
+      </div>
     </div>
+  </header>
 
-    <div class="arch-arrow-h">
-      <div class="arrow-line"></div>
-      <div class="arrow-label">:80</div>
-    </div>
+  <main>
 
-    <div class="arch-block">
-      <div class="arch-icon">⚙️</div>
-      <div class="arch-label">Nginx</div>
-      <div class="arch-sub">Reverse Proxy</div>
-      <div class="lb-tag">Round-Robin</div>
-    </div>
+    <section class="hero">
+      <div class="tag">Round-Robin Load Balancing</div>
+      <h1>Welcome to <span class="hl">Frontend</span></h1>
+      <p>Nginx distributes every request across two Node.js backends. Hit the button and watch which server responds.</p>
+    </section>
 
-    <div class="arch-arrow-h" style="position:relative">
-      <div class="arch-branch">
-        <div style="display:flex;align-items:center">
-          <div class="arrow-line" style="background:linear-gradient(90deg,transparent,var(--b1),transparent)"></div>
-          <span style="font-size:.65rem;color:var(--b1);font-weight:600;margin-left:.3rem">:3001</span>
+    <!-- Main action card -->
+    <div class="action-card">
+      <div class="action-top">
+        <div>
+          <div class="action-title">Call Backend API</div>
+          <div class="action-sub">Sends <code>GET /api/</code> — Nginx picks a backend</div>
         </div>
-        <div style="display:flex;align-items:center">
-          <div class="arrow-line" style="background:linear-gradient(90deg,transparent,var(--b2),transparent)"></div>
-          <span style="font-size:.65rem;color:var(--b2);font-weight:600;margin-left:.3rem">:3002</span>
+        <div class="rr-indicator" id="rr-indicator">Next → <strong>B1</strong></div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="callBalanced()">
+          <span id="btn-icon">⚡</span> Call Backend API
+        </button>
+        <button class="btn btn-b1" onclick="callDirect(1)">Ping B1</button>
+        <button class="btn btn-b2" onclick="callDirect(2)">Ping B2</button>
+      </div>
+
+      <!-- Response display -->
+      <div class="response-wrap" id="response-wrap">
+        <div class="response-bar">
+          <span id="resp-label">Awaiting request…</span>
+          <span class="resp-status" id="resp-status"></span>
+        </div>
+        <div class="response-body" id="response-body">—</div>
+      </div>
+    </div>
+
+    <!-- Server cards -->
+    <div class="server-row">
+      <div class="server-card s1" id="sc1">
+        <div class="sc-header">
+          <div class="sc-name">Backend 1</div>
+          <div class="sc-port">:3001</div>
+        </div>
+        <div class="sc-stat-row">
+          <div class="sc-stat"><div class="sc-stat-label">Status</div><div class="sc-stat-val" id="s1-status">—</div></div>
+          <div class="sc-stat"><div class="sc-stat-label">Uptime</div><div class="sc-stat-val" id="s1-uptime">—</div></div>
+          <div class="sc-stat"><div class="sc-stat-label">Hits</div><div class="sc-stat-val" id="s1-hits">0</div></div>
+        </div>
+      </div>
+
+      <div class="sc-vs">⇄</div>
+
+      <div class="server-card s2" id="sc2">
+        <div class="sc-header">
+          <div class="sc-name">Backend 2</div>
+          <div class="sc-port">:3002</div>
+        </div>
+        <div class="sc-stat-row">
+          <div class="sc-stat"><div class="sc-stat-label">Status</div><div class="sc-stat-val" id="s2-status">—</div></div>
+          <div class="sc-stat"><div class="sc-stat-label">Uptime</div><div class="sc-stat-val" id="s2-uptime">—</div></div>
+          <div class="sc-stat"><div class="sc-stat-label">Hits</div><div class="sc-stat-val" id="s2-hits">0</div></div>
         </div>
       </div>
     </div>
 
-    <div class="arch-branch">
-      <div class="arch-block b1">
-        <div class="arch-icon">🟣</div>
-        <div class="arch-label">Backend 1</div>
-        <div class="arch-sub">Express :3001</div>
-      </div>
-      <div class="arch-block b2">
-        <div class="arch-icon">🟠</div>
-        <div class="arch-label">Backend 2</div>
-        <div class="arch-sub">Express :3002</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Server Status -->
-  <section>
-    <h2 class="section-title">Server Status</h2>
-    <div class="server-grid">
-      <div class="server-card s1">
-        <div class="server-card-header">
-          <div class="server-name">Backend 1</div>
-          <div class="port-badge">:3001</div>
-        </div>
-        <div class="server-info">
-          <div class="info-row"><span>Status</span><span id="s1-status">—</span></div>
-          <div class="info-row"><span>Uptime</span><span id="s1-uptime">—</span></div>
-          <div class="info-row"><span>Memory</span><span id="s1-mem">—</span></div>
-        </div>
-        <div class="server-hit-count">Hits this session: <strong id="s1-hits">0</strong></div>
-        <button class="btn btn-b1" onclick="pingServer(1)">Ping Backend 1</button>
-      </div>
-      <div class="server-card s2">
-        <div class="server-card-header">
-          <div class="server-name">Backend 2</div>
-          <div class="port-badge">:3002</div>
-        </div>
-        <div class="server-info">
-          <div class="info-row"><span>Status</span><span id="s2-status">—</span></div>
-          <div class="info-row"><span>Uptime</span><span id="s2-uptime">—</span></div>
-          <div class="info-row"><span>Memory</span><span id="s2-mem">—</span></div>
-        </div>
-        <div class="server-hit-count">Hits this session: <strong id="s2-hits">0</strong></div>
-        <button class="btn btn-b2" onclick="pingServer(2)">Ping Backend 2</button>
-      </div>
-    </div>
-  </section>
-
-  <!-- Simulate -->
-  <section>
-    <h2 class="section-title">Simulate Load Balancing</h2>
-    <div class="sim-controls">
-      <button class="btn btn-b1" onclick="callApi(1)">Call /api/ → Backend 1</button>
-      <button class="btn btn-b2" onclick="callApi(2)">Call /api/ → Backend 2</button>
-      <button class="btn btn-outline" onclick="callBoth()">Call Both (Round-Robin)</button>
-    </div>
-    <div class="response-box">
-      <div class="response-header">
-        <span id="resp-route">—</span>
-        <span class="resp-badge" id="resp-badge"></span>
-      </div>
-      <pre id="resp-body">Click a button above to call a backend.</pre>
-    </div>
-  </section>
-
-  <!-- Request log -->
-  <section>
-    <h2 class="section-title">Request Log</h2>
-    <div class="log-box">
+    <!-- Request log -->
+    <div class="log-card">
       <div class="log-header">
-        <span>Live Requests</span>
-        <button class="btn btn-outline" style="padding:.25rem .7rem;font-size:.75rem" onclick="clearLog()">Clear</button>
+        <span>Request Log</span>
+        <button class="btn-clear" onclick="clearLog()">Clear</button>
       </div>
-      <div id="log-list">
-        <div class="log-empty">No requests yet — hit a button above.</div>
+      <div class="log-body" id="log-body">
+        <div class="log-empty">No requests yet.</div>
       </div>
     </div>
-  </section>
 
-</main>
+  </main>
 
-<footer>Project 3 — Nginx Load Balancer · Backend1 :3001 · Backend2 :3002</footer>
+  <footer>Project 3 — Nginx Load Balancer · Backend1 :3001 · Backend2 :3002</footer>
 
-<script src="server.js"></script>
+  <script src="server.js"></script>
 </body>
 </html>
