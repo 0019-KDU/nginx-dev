@@ -14,8 +14,8 @@
 6. [Project 1 — Serving a Static Website](#6-project-1--serving-a-static-website)
 7. [Project 2 — NGINX as a Reverse Proxy](#7-project-2--nginx-as-a-reverse-proxy)
 8. [Project 3 — NGINX as a Load Balancer](#8-project-3--nginx-as-a-load-balancer)
-9. [SSL/TLS Setup with Self-Signed Certificate](#9-ssltls-setup-with-self-signed-certificate)
-10. [Load Balancing Algorithms](#10-load-balancing-algorithms)
+9. [Load Balancing Algorithms](#9-load-balancing-algorithms)
+10. [SSL/TLS Setup with Self-Signed Certificate](#10-ssltls-setup-with-self-signed-certificate)
 11. [NGINX vs Apache](#11-nginx-vs-apache)
 12. [Common DevOps Use Cases](#12-common-devops-use-cases)
 13. [NGINX File Structure](#13-nginx-file-structure)
@@ -99,17 +99,104 @@ Each worker handles thousands of connections concurrently
 
 ## 4. NGINX Request Flow
 
+### Overview Diagram
+
 ```
-Step 1  →  Start NGINX          sudo systemctl start nginx
-Step 2  →  Client sends request  Browser / curl / API client
-Step 3  →  TCP Connection        3-way handshake: SYN → SYN-ACK → ACK
-Step 4  →  Socket Creation       OS assigns connection to a socket
-Step 5  →  epoll Mechanism       Linux monitors multiple connections efficiently
-Step 6  →  Request Handling      Readable → read request | Writable → send response
-Step 7  →  Connection Lifecycle  Closed → removed | Keep-Alive → reused
+┌──────────────────────────────────────────────────────────────────┐
+│                      NGINX REQUEST FLOW                          │
+└──────────────────────────────────────────────────────────────────┘
+
+  STEP 1 — NGINX Starts
+  ┌─────────────────────────┐
+  │     Master Process      │  reads nginx.conf, manages workers
+  └───────────┬─────────────┘
+              │ spawns (1 per CPU core)
+    ┌─────────▼──────────┐  ┌────────────────────┐  ┌────────────────────┐
+    │   Worker Process 1 │  │  Worker Process 2  │  │  Worker Process N  │
+    │  handles 1000s of  │  │  handles 1000s of  │  │  handles 1000s of  │
+    │    connections     │  │    connections     │  │    connections     │
+    └────────────────────┘  └────────────────────┘  └────────────────────┘
+              │ all listen on port 80 / 443
+              ▼
+
+  STEP 2 — Client Sends a Request
+  ┌─────────────────────────┐
+  │    Browser / curl /     │
+  │     API Client          │
+  │   GET /index.html       │
+  └───────────┬─────────────┘
+              │ HTTP Request over the network
+              ▼
+
+  STEP 3 — TCP 3-Way Handshake
+  ┌────────────┐                    ┌────────────┐
+  │   Client   │                    │   Server   │
+  │            │──────── SYN ──────►│            │
+  │            │◄───── SYN-ACK ─────│            │
+  │            │──────── ACK ──────►│            │
+  │            │   Connection       │            │
+  │            │   Established ✓    │            │
+  └────────────┘                    └────────────┘
+
+  STEP 4 — Socket Creation
+  ┌────────────────────────────────────────────────┐
+  │  OS assigns the TCP connection a file          │
+  │  descriptor (socket):                          │
+  │                                                │
+  │    fd = 7  →  Client A connection              │
+  │    fd = 8  →  Client B connection              │
+  │    fd = 9  →  Client C connection              │
+  │                                                │
+  │  NGINX treats each socket as an event source   │
+  └────────────────────────────────────────────────┘
+
+  STEP 5 — epoll Monitors All Sockets
+  ┌────────────────────────────────────────────────┐
+  │              Linux Kernel — epoll              │
+  │                                                │
+  │   epoll_wait( [fd7, fd8, fd9, ...] )           │
+  │                                                │
+  │   ✗  Doesn't poll every fd in a loop          │
+  │   ✓  Kernel notifies ONLY when data is ready  │
+  │                                                │
+  │   Result: handles 10,000+ connections with    │
+  │   a single worker thread — zero idle waste    │
+  └────────────────────────────────────────────────┘
+
+  STEP 6 — Event Triggered → Handle Request
+  ┌─────────────────────────┐   ┌─────────────────────────┐
+  │    READABLE Event       │   │    WRITABLE Event       │
+  │                         │   │                         │
+  │  • Read HTTP headers    │   │  • Send HTTP response   │
+  │  • Parse method + URI   │   │  • Serve file / proxy   │
+  │  • Read request body    │   │  • Stream data to client│
+  └─────────────────────────┘   └─────────────────────────┘
+
+  STEP 7 — Connection Lifecycle
+  ┌────────────────────────────────────────────────┐
+  │                                                │
+  │   Connection: close    → socket fd removed     │
+  │                          memory freed          │
+  │                                                │
+  │   Connection: keep-alive → socket reused       │
+  │                            next request reuses │
+  │                            same TCP connection │
+  └────────────────────────────────────────────────┘
 ```
 
-> **epoll** is a Linux system call that lets NGINX monitor thousands of file descriptors simultaneously with near-zero overhead.
+### Step-by-Step Summary
+
+| Step | What Happens |
+|---|---|
+| 1 | Master process starts, spawns N worker processes (N = CPU cores) |
+| 2 | Client sends HTTP request over the network |
+| 3 | TCP 3-way handshake establishes the connection (SYN → SYN-ACK → ACK) |
+| 4 | OS assigns a socket file descriptor to the connection |
+| 5 | `epoll` monitors all open sockets — kernel notifies worker only when data arrives |
+| 6 | Worker reads the request (READABLE) and sends a response (WRITABLE) |
+| 7 | Connection is closed or kept alive for reuse |
+
+> **epoll** is a Linux system call that replaces the old `select`/`poll` loop. Instead of checking every socket every cycle, epoll lets the kernel push a notification only when a socket is ready — enabling NGINX to handle tens of thousands of connections efficiently with a single worker process.
 
 ---
 
@@ -159,7 +246,8 @@ sudo vi /etc/nginx/sites-available/static-site
 ```nginx
 server {
     listen 80;
-    server_name skjptpp.in;
+    server_name YOUR_PUBLIC_IP;   # e.g. 3.110.184.46
+                                  # Note: replace with your domain name if you have one
 
     root  /var/www/static-site;
     index index.html;
@@ -175,20 +263,33 @@ server {
 | Directive | Role |
 |---|---|
 | `listen 80` | Binds to port 80 (HTTP) |
-| `server_name` | Domains this block responds to |
+| `server_name` | IP or domain this block responds to |
 | `root` | Document root directory |
 | `index` | Default file served when `/` is requested |
 | `try_files` | Resolves file path — returns 404 if not found |
 
-### Step 3 — Enable Site and Reload
+### Step 3 — Test NGINX Configuration
+
+Always validate config before enabling:
+
+```bash
+sudo nginx -t
+```
+
+Expected output:
+```
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+### Step 4 — Enable Site and Reload
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/static-site /etc/nginx/sites-enabled/
-sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Visit `http://skjptpp.in` (after DNS setup) — static site is live!
+Visit `http://YOUR_PUBLIC_IP` — static site is live!
 
 ---
 
@@ -258,7 +359,8 @@ sudo vi /etc/nginx/sites-available/nginx-node-proxy
 ```nginx
 server {
     listen 80;
-    server_name skjptpp.in;
+    server_name YOUR_PUBLIC_IP;   # e.g. 3.110.184.46
+                                  # Note: replace with your domain name if you have one
 
     root  /var/www/frontend;
     index index.html;
@@ -270,7 +372,7 @@ server {
 
     # Reverse proxy to Node.js REST API
     location /api/ {
-        proxy_pass         http://13.201.37.133:3000;
+        proxy_pass         http://YOUR_PUBLIC_IP:3000;
         proxy_http_version 1.1;
         proxy_set_header   Host            $host;
         proxy_set_header   X-Real-IP       $remote_addr;
@@ -297,15 +399,26 @@ npm install express cors socket.io
 node index.js
 ```
 
-### Step 4 — Enable Site and Reload
+### Step 4 — Test NGINX Configuration
+
+```bash
+sudo nginx -t
+```
+
+Expected output:
+```
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+### Step 5 — Enable Site and Reload
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/nginx-node-proxy /etc/nginx/sites-enabled/
-sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Visit `http://skjptpp.in`
+Visit `http://YOUR_PUBLIC_IP`
 
 ---
 
@@ -334,13 +447,14 @@ sudo vi /etc/nginx/sites-available/nginx-loadbalancer
 ```nginx
 upstream backend_apis {
     least_conn;
-    server 13.201.37.133:3001;
-    server 13.201.37.133:3002;
+    server YOUR_PUBLIC_IP:3001;   # Backend 1
+    server YOUR_PUBLIC_IP:3002;   # Backend 2
+    # Note: replace YOUR_PUBLIC_IP with your domain name if you have one
 }
 
 server {
     listen 80;
-    server_name skjptpp.in;
+    server_name YOUR_PUBLIC_IP;
 
     root  /var/www/frontend;
     index index.html;
@@ -375,26 +489,86 @@ cd backend2 && npm init -y && npm install express
 node index.js
 ```
 
-### Step 4 — Enable Site and Reload
+### Step 4 — Test NGINX Configuration
+
+```bash
+sudo nginx -t
+```
+
+Expected output:
+```
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+### Step 5 — Enable Site and Reload
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/nginx-loadbalancer /etc/nginx/sites-enabled/
-sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-### Step 5 — Simulate Traffic
+### Step 6 — Simulate Traffic
 
 ```bash
 sudo apt install apache2-utils -y
-ab -n 100 -c 10 http://skjptpp.in/api/
+ab -n 100 -c 10 http://YOUR_PUBLIC_IP/api/
 ```
 
 > `-n 100` = 100 total requests · `-c 10` = 10 concurrent requests
 
 ---
 
-## 9. SSL/TLS Setup with Self-Signed Certificate
+## 9. Load Balancing Algorithms
+
+| Algorithm | Behavior |
+|---|---|
+| **round-robin** | Default — rotates through all backends equally |
+| **least_conn** | Sends to the backend with fewest active connections |
+| **ip_hash** | Uses client IP to consistently route to the same backend (sticky sessions) |
+| **weighted** | Assigns more traffic to servers with higher weight value |
+
+### Round-Robin (Default)
+
+```nginx
+upstream backend_apis {
+    server YOUR_PUBLIC_IP:3001;
+    server YOUR_PUBLIC_IP:3002;
+}
+```
+
+### Least Connections
+
+```nginx
+upstream backend_apis {
+    least_conn;
+    server YOUR_PUBLIC_IP:3001;
+    server YOUR_PUBLIC_IP:3002;
+}
+```
+
+### IP Hash (Sticky Sessions)
+
+```nginx
+upstream backend_apis {
+    ip_hash;
+    server YOUR_PUBLIC_IP:3001;
+    server YOUR_PUBLIC_IP:3002;
+}
+```
+
+### Weighted
+
+```nginx
+upstream backend_apis {
+    server YOUR_PUBLIC_IP:3001 weight=3;   # gets 3x more traffic
+    server YOUR_PUBLIC_IP:3002 weight=1;
+}
+```
+
+---
+
+## 10. SSL/TLS Setup with Self-Signed Certificate
 
 > Ideal for local development, internal tools, and non-public test environments.
 
@@ -414,7 +588,7 @@ sudo openssl req -x509 -nodes -days 365 \
   -out /etc/ssl/certs/nginx-selfsigned.crt
 ```
 
-> When prompted for **Common Name (CN):** enter `localhost` or your server's IP.
+> When prompted for **Common Name (CN):** enter `YOUR_PUBLIC_IP` or `localhost`.
 
 ### Step 2 — Update NGINX Configuration
 
@@ -425,7 +599,7 @@ sudo nano /etc/nginx/sites-available/default
 ```nginx
 server {
     listen 443 ssl;
-    server_name localhost;
+    server_name YOUR_PUBLIC_IP;   # Note: replace with your domain name if you have one
 
     ssl_certificate     /etc/ssl/certs/nginx-selfsigned.crt;
     ssl_certificate_key /etc/ssl/private/nginx-selfsigned.key;
@@ -440,29 +614,30 @@ server {
 # Redirect HTTP → HTTPS
 server {
     listen 80;
-    server_name localhost;
+    server_name YOUR_PUBLIC_IP;
     return 301 https://$host$request_uri;
 }
 ```
 
-### Step 3 — Reload NGINX
+### Step 3 — Test NGINX Configuration
 
 ```bash
 sudo nginx -t
-sudo systemctl reload nginx
 ```
 
-### Step 4 — Test HTTPS
+### Step 4 — Reload and Test HTTPS
 
 ```bash
+sudo systemctl reload nginx
+
 # In browser
-https://localhost
+https://YOUR_PUBLIC_IP
 
 # With curl (-k allows self-signed certs)
-curl -k https://localhost
+curl -k https://YOUR_PUBLIC_IP
 ```
 
-> ⚠️ Browser will show **"Your connection is not private"** — this is expected. Proceed anyway.
+> ⚠️ Browser will show **"Your connection is not private"** — this is expected with self-signed certs. Proceed anyway.
 
 ### SSL File Paths
 
@@ -471,54 +646,6 @@ curl -k https://localhost
 | `/etc/ssl/certs/nginx-selfsigned.crt` | SSL certificate |
 | `/etc/ssl/private/nginx-selfsigned.key` | Private key |
 | `/etc/nginx/sites-available/default` | HTTPS proxy config |
-
----
-
-## 10. Load Balancing Algorithms
-
-| Algorithm | Behavior |
-|---|---|
-| **round-robin** | Default — rotates through all backends equally |
-| **least_conn** | Sends to the backend with fewest active connections |
-| **ip_hash** | Uses client IP to consistently route to the same backend (sticky sessions) |
-
-### Round-Robin (Default)
-
-```nginx
-upstream backend_app {
-    server 127.0.0.1:3001;
-    server 127.0.0.1:3002;
-}
-```
-
-### Least Connections
-
-```nginx
-upstream backend_app {
-    least_conn;
-    server 127.0.0.1:3001;
-    server 127.0.0.1:3002;
-}
-```
-
-### IP Hash (Sticky Sessions)
-
-```nginx
-upstream backend_app {
-    ip_hash;
-    server 127.0.0.1:3001;
-    server 127.0.0.1:3002;
-}
-```
-
-### Weighted
-
-```nginx
-upstream backend_app {
-    server 127.0.0.1:3001 weight=3;   # gets 3x more traffic
-    server 127.0.0.1:3002 weight=1;
-}
-```
 
 ---
 
