@@ -14,12 +14,11 @@
 6. [Project 1 — Serving a Static Website](#6-project-1--serving-a-static-website)
 7. [Project 2 — NGINX as a Reverse Proxy](#7-project-2--nginx-as-a-reverse-proxy)
 8. [Project 3 — NGINX as a Load Balancer](#8-project-3--nginx-as-a-load-balancer)
-9. [Load Balancing Algorithms](#9-load-balancing-algorithms)
-10. [SSL/TLS Setup with Self-Signed Certificate](#10-ssltls-setup-with-self-signed-certificate)
-11. [NGINX vs Apache](#11-nginx-vs-apache)
-12. [Common DevOps Use Cases](#12-common-devops-use-cases)
-13. [NGINX File Structure](#13-nginx-file-structure)
-14. [Docker Demo](#14-docker-demo)
+9. [SSL/TLS Setup with Self-Signed Certificate](#9-ssltls-setup-with-self-signed-certificate)
+10. [NGINX vs Apache](#10-nginx-vs-apache)
+11. [Common DevOps Use Cases](#11-common-devops-use-cases)
+12. [NGINX File Structure](#12-nginx-file-structure)
+13. [Docker Demo](#13-docker-demo)
 
 ---
 
@@ -390,16 +389,7 @@ server {
 }
 ```
 
-### Step 3 — Start the Node.js Backend
-
-```bash
-cd /home/ubuntu/nginx-node-proxy/backend
-npm init -y
-npm install express cors socket.io
-node index.js
-```
-
-### Step 4 — Test NGINX Configuration
+### Step 3 — Test NGINX Configuration
 
 ```bash
 sudo nginx -t
@@ -411,11 +401,20 @@ nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
 nginx: configuration file /etc/nginx/nginx.conf test is successful
 ```
 
-### Step 5 — Enable Site and Reload
+### Step 4 — Enable Site and Reload
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/nginx-node-proxy /etc/nginx/sites-enabled/
 sudo systemctl reload nginx
+```
+
+### Step 5 — Start the Node.js Backend
+
+```bash
+cd /home/ubuntu/nginx-node-proxy/backend
+npm init -y
+npm install express cors socket.io
+node index.js
 ```
 
 Visit `http://YOUR_PUBLIC_IP`
@@ -475,7 +474,35 @@ server {
 }
 ```
 
-### Step 3 — Start Both Backends
+### Step 3 — Test NGINX Configuration
+
+```bash
+sudo nginx -t
+```
+
+Expected output:
+```
+nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+nginx: configuration file /etc/nginx/nginx.conf test is successful
+```
+
+### Step 4 — Enable Site and Reload
+
+```bash
+sudo ln -s /etc/nginx/sites-available/nginx-loadbalancer /etc/nginx/sites-enabled/
+sudo systemctl reload nginx
+```
+
+### Step 5 — Simulate Traffic
+
+```bash
+sudo apt install apache2-utils -y
+ab -n 100 -c 10 http://YOUR_PUBLIC_IP/api/
+```
+
+> `-n 100` = 100 total requests · `-c 10` = 10 concurrent requests
+
+### Step 6 — Start Both Backends
 
 ```bash
 cd /home/ubuntu/nginx-loadbalancer/
@@ -489,37 +516,9 @@ cd backend2 && npm init -y && npm install express
 node index.js
 ```
 
-### Step 4 — Test NGINX Configuration
-
-```bash
-sudo nginx -t
-```
-
-Expected output:
-```
-nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
-nginx: configuration file /etc/nginx/nginx.conf test is successful
-```
-
-### Step 5 — Enable Site and Reload
-
-```bash
-sudo ln -s /etc/nginx/sites-available/nginx-loadbalancer /etc/nginx/sites-enabled/
-sudo systemctl reload nginx
-```
-
-### Step 6 — Simulate Traffic
-
-```bash
-sudo apt install apache2-utils -y
-ab -n 100 -c 10 http://YOUR_PUBLIC_IP/api/
-```
-
-> `-n 100` = 100 total requests · `-c 10` = 10 concurrent requests
-
 ---
 
-## 9. Load Balancing Algorithms
+### Load Balancing Algorithms
 
 | Algorithm | Behavior |
 |---|---|
@@ -528,7 +527,7 @@ ab -n 100 -c 10 http://YOUR_PUBLIC_IP/api/
 | **ip_hash** | Uses client IP to consistently route to the same backend (sticky sessions) |
 | **weighted** | Assigns more traffic to servers with higher weight value |
 
-### Round-Robin (Default)
+#### Round-Robin (Default)
 
 ```nginx
 upstream backend_apis {
@@ -537,7 +536,7 @@ upstream backend_apis {
 }
 ```
 
-### Least Connections
+#### Least Connections
 
 ```nginx
 upstream backend_apis {
@@ -547,7 +546,7 @@ upstream backend_apis {
 }
 ```
 
-### IP Hash (Sticky Sessions)
+#### IP Hash (Sticky Sessions)
 
 ```nginx
 upstream backend_apis {
@@ -557,7 +556,7 @@ upstream backend_apis {
 }
 ```
 
-### Weighted
+#### Weighted
 
 ```nginx
 upstream backend_apis {
@@ -568,7 +567,7 @@ upstream backend_apis {
 
 ---
 
-## 10. SSL/TLS Setup with Self-Signed Certificate
+## 9. SSL/TLS Setup with Self-Signed Certificate
 
 > Ideal for local development, internal tools, and non-public test environments.
 
@@ -649,7 +648,7 @@ curl -k https://YOUR_PUBLIC_IP
 
 ---
 
-## 11. NGINX vs Apache
+## 10. NGINX vs Apache
 
 | Feature | NGINX | Apache |
 |---|---|---|
@@ -664,7 +663,7 @@ curl -k https://YOUR_PUBLIC_IP
 
 ---
 
-## 12. Common DevOps Use Cases
+## 11. Common DevOps Use Cases
 
 | Use Case | Example |
 |---|---|
@@ -678,7 +677,7 @@ curl -k https://YOUR_PUBLIC_IP
 
 ---
 
-## 13. NGINX File Structure
+## 12. NGINX File Structure
 
 | Path | Purpose |
 |---|---|
@@ -691,7 +690,7 @@ curl -k https://YOUR_PUBLIC_IP
 
 ---
 
-## 14. Docker Demo
+## 13. Docker Demo
 
 ```bash
 # Run NGINX container
