@@ -1,6 +1,9 @@
+// When served via Nginx, all /api/ calls go through port 80
+// Nginx then round-robins to :3001 or :3002 internally on the server
+// Direct pings also go through Nginx — server picks which backend responds
 const BACKENDS = {
-  1: 'http://localhost:3001',
-  2: 'http://localhost:3002',
+  1: 'http://3.110.184.46',
+  2: 'http://3.110.184.46',
 };
 
 const hits = { 1: 0, 2: 0 };
